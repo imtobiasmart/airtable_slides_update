@@ -460,7 +460,7 @@ def main():
 
     slides_service = get_slides_service()
 
-    for record in records[:1]:
+    for record in records:
         fields = record.get("fields", {})
 
         # --- Slide ID ---
