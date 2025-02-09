@@ -39,4 +39,4 @@ jobs:
           GOOGLE_PRESENTATION_ID: ${{ secrets.GOOGLE_PRESENTATION_ID }}
           TEMPLATE_SLIDE_ID: ${{ secrets.TEMPLATE_SLIDE_ID }}
           GOOGLE_SERVICE_ACCOUNT_FILE: service_account.json
-        run: python job.py
+        run: python main.py
