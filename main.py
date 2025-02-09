@@ -485,8 +485,8 @@ def main():
         speakers_list = [adjust_representation(s) for s in speakers_raw]
         moderators_list = [adjust_representation(s) for s in moderators_raw]
         # Join with commas (with no extra space) as required.
-        speakers_str = ",".join(speakers_list)
-        moderators_str = ",".join(moderators_list)
+        speakers_str = ", ".join(speakers_list)
+        moderators_str = ", ".join(moderators_list)
 
         # Use the status fields (if available) to map to colors.
         speakers_statuses = fields.get("S Status (from Speaker)", [])
