@@ -202,14 +202,11 @@ def update_presentation_with_slide(service,
                                    channel: str,
                                    description: str,
                                    speakers: str,
-                                   speaker_note: str,
                                    speaker_colors: str,
                                    moderators: str,
                                    moderator_colors: str,
-                                   partners: str = "",
-                                   partners_colors: str = "",
                                    slide_id: str = "") -> dict:
-    # Map statuses to background colors for text
+    # Mapping for text background colors
     COLORS = {
         "green": {"red": 0.6, "green": 1, "blue": 0.6},
         "yellow": {"red": 1, "green": 1, "blue": 0.6},
@@ -217,13 +214,11 @@ def update_presentation_with_slide(service,
         "orange": {"red": 1, "green": 0.647, "blue": 0}
     }
 
-    # Process colors and people strings
+    # Process the colors lists from the input strings.
     speaker_colors_list = [c.strip() for c in speaker_colors.split(",")]
     moderator_colors_list = [c.strip() for c in moderator_colors.split(",")]
-    speakers = add_spaces_after_commas_between_people(speakers)
-    moderators = add_spaces_after_commas_between_people(moderators)
 
-    # Choose background color based on curation status
+    # Choose slide background color based on curation status.
     if status.strip() == '(5) Confirmed':
         background_color = {"red": 0.83, "green": 0.898, "blue": 0.812}
     else:
@@ -239,9 +234,7 @@ def update_presentation_with_slide(service,
     # --- UPDATE mode: if slide_id is provided, fetch slide details ---
     if slide_id:
         main_slide_id = slide_id
-        # Retrieve the full presentation to find the slide
         presentation = service.presentations().get(presentationId=presentation_id).execute()
-        slide_data = None
         for page in presentation.get("slides", []):
             if page.get("objectId") == slide_id:
                 slide_data = page
@@ -250,12 +243,10 @@ def update_presentation_with_slide(service,
             raise Exception(f"Slide with id {slide_id} not found.")
         if "pageElements" not in slide_data or not slide_data["pageElements"]:
             raise Exception("No page elements found on the slide.")
-        # Find the table element
         table_element = next((pe for pe in slide_data["pageElements"] if "table" in pe), None)
         if not table_element:
             raise Exception("No table element found on the slide.")
         table_id = table_element["objectId"]
-        # Locate the speaker notes shape (assume index 1 in notesPage)
         notes_page = slide_data.get("slideProperties", {}).get("notesPage", {})
         notes_elements = notes_page.get("pageElements", [])
         if len(notes_elements) > 1:
@@ -283,7 +274,9 @@ def update_presentation_with_slide(service,
 
     # --- Helper: Add a text-update request for a table cell ---
     def add_text_update(cell_location: dict, text: str):
-        # In update mode, check if the cell already has text and delete it.
+        # If there's no text to update, skip deletion/insertion.
+        if not text.strip():
+            return
         if slide_id and table_element and table_element.get("table"):
             try:
                 row_idx = cell_location["rowIndex"]
@@ -305,7 +298,6 @@ def update_presentation_with_slide(service,
                     })
             except Exception as e:
                 logging.warning(f"Error checking cell content, skipping deletion: {e}")
-        # Then insert the new text.
         requests_list.append({
             "insertText": {
                 "objectId": table_id,
@@ -338,15 +330,13 @@ def update_presentation_with_slide(service,
         }
     })
 
-    # --- Update speaker notes ---
-    if speaker_notes_id:
-        # In update mode, clear existing speaker notes if any
+    # --- Update speaker notes (only if nonempty) ---
+    if speaker_notes_id and note.strip():
         if slide_id and slide_data:
             notes_page = slide_data.get("slideProperties", {}).get("notesPage", {})
             for pe in notes_page.get("pageElements", []):
                 if pe.get("objectId") == speaker_notes_id and pe.get("shape", {}).get("text", {}).get("textElements"):
-                    notes_content = "".join(
-                        [te.get("textRun", {}).get("content", "") for te in pe["shape"]["text"]["textElements"]])
+                    notes_content = "".join([te.get("textRun", {}).get("content", "") for te in pe["shape"]["text"]["textElements"]])
                     if notes_content.strip() not in ["", "\n"]:
                         requests_list.append({
                             "deleteText": {
@@ -359,83 +349,84 @@ def update_presentation_with_slide(service,
             "insertText": {
                 "objectId": speaker_notes_id,
                 "insertionIndex": 0,
-                "text": speaker_note
+                "text": note
             }
         })
 
-    # --- Reset text background colors for the entire cells before applying new formatting ---
-    # Reset speakers cell (row index 5, column index 1)
-    requests_list.append({
-        "updateTextStyle": {
-            "objectId": table_id,
-            "cellLocation": {"rowIndex": 5, "columnIndex": 1},
-            "textRange": {"type": "ALL"},
-            "style": {
-                "backgroundColor": {}  # Clear any background color so that it becomes transparent
-            },
-            "fields": "backgroundColor"
-        }
-    })
-    # Reset moderators cell (row index 4, column index 1)
-    requests_list.append({
-        "updateTextStyle": {
-            "objectId": table_id,
-            "cellLocation": {"rowIndex": 4, "columnIndex": 1},
-            "textRange": {"type": "ALL"},
-            "style": {
-                "backgroundColor": {}  # Clear any background color so that it becomes transparent
-            },
-            "fields": "backgroundColor"
-        }
-    })
+    # --- Reset text background colors for speakers and moderators (if there is text) ---
+    if speakers.strip():
+        requests_list.append({
+            "updateTextStyle": {
+                "objectId": table_id,
+                "cellLocation": {"rowIndex": 5, "columnIndex": 1},
+                "textRange": {"type": "ALL"},
+                "style": {
+                    "backgroundColor": {}  # Clear background formatting (transparent)
+                },
+                "fields": "backgroundColor"
+            }
+        })
+    if moderators.strip():
+        requests_list.append({
+            "updateTextStyle": {
+                "objectId": table_id,
+                "cellLocation": {"rowIndex": 4, "columnIndex": 1},
+                "textRange": {"type": "ALL"},
+                "style": {
+                    "backgroundColor": {}  # Clear background formatting (transparent)
+                },
+                "fields": "backgroundColor"
+            }
+        })
 
-    # --- Update text styles for speakers ---
-    speaker_entries = split_people_and_indices(speakers)
-    for idx, entry in enumerate(speaker_entries):
-        if idx < len(speaker_colors_list):
-            color = speaker_colors_list[idx]
-            if color != "unknown" and color in COLORS:
-                requests_list.append({
-                    "updateTextStyle": {
-                        "objectId": table_id,
-                        "cellLocation": {"rowIndex": 5, "columnIndex": 1},
-                        "textRange": {
-                            "type": "FIXED_RANGE",
-                            "startIndex": entry["startIndex"],
-                            "endIndex": entry["endIndex"]
-                        },
-                        "style": {
-                            "backgroundColor": {
-                                "opaqueColor": {"rgbColor": COLORS[color]}
-                            }
-                        },
-                        "fields": "backgroundColor"
-                    }
-                })
-
-    # --- Update text styles for moderators ---
-    moderator_entries = split_people_and_indices(moderators)
-    for idx, entry in enumerate(moderator_entries):
-        if idx < len(moderator_colors_list):
-            color = moderator_colors_list[idx]
-            if color != "unknown" and color in COLORS:
-                requests_list.append({
-                    "updateTextStyle": {
-                        "objectId": table_id,
-                        "cellLocation": {"rowIndex": 4, "columnIndex": 1},
-                        "textRange": {
-                            "type": "FIXED_RANGE",
-                            "startIndex": entry["startIndex"],
-                            "endIndex": entry["endIndex"]
-                        },
-                        "style": {
-                            "backgroundColor": {
-                                "opaqueColor": {"rgbColor": COLORS[color]}
-                            }
-                        },
-                        "fields": "backgroundColor"
-                    }
-                })
+    # --- Update text styles for speakers (apply new background colors) ---
+    if speakers.strip():
+        speaker_entries = split_people_and_indices(speakers)
+        for idx, entry in enumerate(speaker_entries):
+            if idx < len(speaker_colors_list):
+                color = speaker_colors_list[idx]
+                if color != "unknown" and color in COLORS:
+                    requests_list.append({
+                        "updateTextStyle": {
+                            "objectId": table_id,
+                            "cellLocation": {"rowIndex": 5, "columnIndex": 1},
+                            "textRange": {
+                                "type": "FIXED_RANGE",
+                                "startIndex": entry["startIndex"],
+                                "endIndex": entry["endIndex"]
+                            },
+                            "style": {
+                                "backgroundColor": {
+                                    "opaqueColor": {"rgbColor": COLORS[color]}
+                                }
+                            },
+                            "fields": "backgroundColor"
+                        }
+                    })
+    # --- Update text styles for moderators (apply new background colors) ---
+    if moderators.strip():
+        moderator_entries = split_people_and_indices(moderators)
+        for idx, entry in enumerate(moderator_entries):
+            if idx < len(moderator_colors_list):
+                color = moderator_colors_list[idx]
+                if color != "unknown" and color in COLORS:
+                    requests_list.append({
+                        "updateTextStyle": {
+                            "objectId": table_id,
+                            "cellLocation": {"rowIndex": 4, "columnIndex": 1},
+                            "textRange": {
+                                "type": "FIXED_RANGE",
+                                "startIndex": entry["startIndex"],
+                                "endIndex": entry["endIndex"]
+                            },
+                            "style": {
+                                "backgroundColor": {
+                                    "opaqueColor": {"rgbColor": COLORS[color]}
+                                }
+                            },
+                            "fields": "backgroundColor"
+                        }
+                    })
 
     logging.info("Batch update requests: " + str(requests_list))
     body = {"requests": requests_list}
@@ -523,13 +514,10 @@ def main():
                 channel=channel,
                 description=description,
                 speakers=speakers_str,
-                speaker_note=note,  # Using the "Notes" field as speaker notes (adjust if needed)
                 speaker_colors=speaker_colors_str,
                 moderators=moderators_str,
                 moderator_colors=moderator_colors_str,
-                partners="",
-                partners_colors="",
-                slide_id=slide_id  # Update mode since Slide ID exists
+                slide_id=slide_id
             )
             logging.info(f"Slide update result for record {record.get('id')}: {result}")
             print(f"Slide update result for record {record.get('id')}: {result}")
