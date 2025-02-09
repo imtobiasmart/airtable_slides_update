@@ -1,5 +1,6 @@
-pyairtable
-google-api-python-client
+pyairtable~=3.0.1
+google-api-python-client~=2.86.0
 google-auth
 google-auth-httplib2
 google-auth-oauthlib
+protobuf~=5.29.3

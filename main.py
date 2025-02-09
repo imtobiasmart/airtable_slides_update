@@ -24,6 +24,14 @@ SCOPES = [
     'https://www.googleapis.com/auth/drive'
 ]
 
+# Mapping for text background colors
+COLORS = {
+    "green": {"red": 0.6, "green": 1, "blue": 0.6},
+    "yellow": {"red": 1, "green": 1, "blue": 0.6},
+    "red": {"red": 1, "green": 0.6, "blue": 0.6},
+    "orange": {"red": 1, "green": 0.647, "blue": 0}
+}
+
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 
@@ -82,7 +90,7 @@ def get_airtable_record_column_value(base_id: str, api: Api, table_name: str, re
 # ================================================
 def adjust_representation(s: str) -> str:
     s = s.strip()
-    match = re.match(r'^([^\(]+?)(?:\s*\(\s*(.*?)\s*\))?$', s)
+    match = re.match(r'^([^(]+?)(?:\s*\(\s*(.*?)\s*\))?$', s)
     if match:
         name = match.group(1).strip()
         inside_parens = match.group(2)
@@ -206,13 +214,6 @@ def update_presentation_with_slide(service,
                                    moderators: str,
                                    moderator_colors: str,
                                    slide_id: str = "") -> dict:
-    # Mapping for text background colors
-    COLORS = {
-        "green": {"red": 0.6, "green": 1, "blue": 0.6},
-        "yellow": {"red": 1, "green": 1, "blue": 0.6},
-        "red": {"red": 1, "green": 0.6, "blue": 0.6},
-        "orange": {"red": 1, "green": 0.647, "blue": 0}
-    }
 
     # Process the colors lists from the input strings.
     speaker_colors_list = [c.strip() for c in speaker_colors.split(",")]
@@ -227,7 +228,6 @@ def update_presentation_with_slide(service,
     requests_list = []
     table_id = None
     speaker_notes_id = None
-    main_slide_id = None
     table_element = None
     slide_data = None
 
