@@ -274,9 +274,6 @@ def update_presentation_with_slide(service,
 
     # --- Helper: Add a text-update request for a table cell ---
     def add_text_update(cell_location: dict, text: str):
-        # If there's no text to update, skip deletion/insertion.
-        if not text.strip():
-            return
         if slide_id and table_element and table_element.get("table"):
             try:
                 row_idx = cell_location["rowIndex"]
